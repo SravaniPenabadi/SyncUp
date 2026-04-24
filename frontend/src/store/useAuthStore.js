@@ -87,6 +87,36 @@ export const useAuthStore = create((set, get) => ({
     }
   },
  
+  updateProfileInfo: async (data) => {
+  try {
+    const res = await axiosInstance.put("/auth/update-profile-info", data);
+    set({ authUser: res.data });
+    toast.success("Profile updated successfully");
+  } catch (error) {
+    toast.error(error.response?.data?.message || "Failed to update profile");
+  }
+},
+
+updateAccount: async (data) => {
+  try {
+    const res = await axiosInstance.put("/auth/update-account", data);
+    set({ authUser: res.data });
+    toast.success("Account updated successfully");
+  } catch (error) {
+    toast.error(error.response?.data?.message || "Failed to update account");
+  }
+},
+
+updatePrivacy: async (data) => {
+  try {
+    const res = await axiosInstance.put("/auth/update-privacy", data);
+    set({ authUser: res.data });
+    toast.success("Privacy settings saved");
+  } catch (error) {
+    toast.error(error.response?.data?.message || "Failed to update privacy");
+  }
+},
+
   connectSocket: () => {
     const { authUser } = get();
     if (!authUser || get().socket?.connected) return;

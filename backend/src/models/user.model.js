@@ -20,6 +20,20 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    bio: {
+      type: String,
+      default: "",
+    },
+    lastSeenVisibility: {
+      type: String,
+      enum: ["everyone", "contacts", "nobody"],
+      default: "everyone",
+    },
+    profilePhotoVisibility: {
+      type: String,
+      enum: ["everyone", "contacts", "nobody"],
+      default: "everyone",
+    },
   },
   { timestamps: true }
 );

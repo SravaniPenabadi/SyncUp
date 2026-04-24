@@ -116,3 +116,80 @@ export const checkAuth = (req, res) => {
     res.status(500).json({ message: "Internal Server Error" });
   }
 };
+// Update profile (name, bio, avatar)
+export const updateProfileInfo = async (req, res) => {
+  try {
+    const { fullName, bio, profilePic } = req.body;
+    const userId = req.user._id;
+
+    const updates = {};
+    if (fullName) updates.fullName = fullName;
+    if (bio !== undefined) updates.bio = bio;
+
+    if (profilePic) {
+      const uploadResponse = await cloudinary.uploader.upload(profilePic);
+      updates.profilePic = uploadResponse.secure_url;
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(userId, updates, { new: true }).select("-password");
+    res.status(200).json(updatedUser);
+  } catch (error) {
+    console.log("Error in updateProfileInfo:", error.message);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+// Update account (email, password)
+export const updateAccount = async (req, res) => {
+  try {
+    const { email, currentPassword, newPassword } = req.body;
+    const userId = req.user._id;
+
+    const user = await User.findById(userId);
+
+    const updates = {};
+
+    if (email && email !== user.email) {
+      const emailExists = await User.findOne({ email });
+      if (emailExists) return res.status(400).json({ message: "Email already in use" });
+      updates.email = email;
+    }
+
+    if (newPassword) {
+      if (!currentPassword) return res.status(400).json({ message: "Current password is required" });
+      const isMatch = await bcrypt.compare(currentPassword, user.password);
+      if (!isMatch) return res.status(400).json({ message: "Current password is incorrect" });
+      if (newPassword.length < 6) return res.status(400).json({ message: "Password must be at least 6 characters" });
+      const salt = await bcrypt.genSalt(10);
+      updates.password = await bcrypt.hash(newPassword, salt);
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ message: "No changes to update" });
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(userId, updates, { new: true }).select("-password");
+    res.status(200).json(updatedUser);
+  } catch (error) {
+    console.log("Error in updateAccount:", error.message);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+// Update privacy settings
+export const updatePrivacy = async (req, res) => {
+  try {
+    const { lastSeenVisibility, profilePhotoVisibility } = req.body;
+    const userId = req.user._id;
+
+    const updates = {};
+    if (lastSeenVisibility) updates.lastSeenVisibility = lastSeenVisibility;
+    if (profilePhotoVisibility) updates.profilePhotoVisibility = profilePhotoVisibility;
+
+    const updatedUser = await User.findByIdAndUpdate(userId, updates, { new: true }).select("-password");
+    res.status(200).json(updatedUser);
+  } catch (error) {
+    console.log("Error in updatePrivacy:", error.message);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};
