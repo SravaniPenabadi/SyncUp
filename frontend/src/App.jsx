@@ -22,6 +22,7 @@ const App = () => {
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
+  
 
   // console.log({ authUser });
 
@@ -33,7 +34,7 @@ const App = () => {
     );
 
   return (
-    <div>
+      <div data-theme={theme}> 
       <Navbar />
 
       <Routes>
