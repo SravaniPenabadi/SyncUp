@@ -21,10 +21,13 @@ export const getUsersForSidebar = async (req, res) => {
     const loggedInUserId = req.user._id;
     const loggedInUser = await User.findById(loggedInUserId);
 
+    // ✅ fallback to empty array if field doesn't exist yet
+    const deletedContacts = loggedInUser.deletedContacts || [];
+
     const filteredUsers = await User.find({
       _id: {
         $ne: loggedInUserId,
-        $nin: loggedInUser.deletedContacts, // ✅ exclude deleted contacts
+        $nin: deletedContacts,
       },
     }).select("-password");
 
