@@ -69,6 +69,24 @@ deleteMessage: async (messageId) => {
     toast.error(error?.response?.data?.message || "Failed to delete message");
   }
 },
+
+deleteContact: async (contactId) => {
+  try {
+    await axiosInstance.delete(`/messages/contact/${contactId}`);
+
+    // Remove from users list immediately (no refresh needed)
+    set((state) => ({
+      users: state.users.filter((u) => u._id !== contactId),
+      selectedUser:
+        state.selectedUser?._id === contactId ? null : state.selectedUser,
+    }));
+
+    toast.success("Contact deleted");
+  } catch (error) {
+    toast.error(error.response?.data?.message || "Failed to delete contact");
+  }
+},
+
   unsubscribeFromMessages: () => {
     const socket = useAuthStore.getState().socket;
     socket.off("newMessage");
