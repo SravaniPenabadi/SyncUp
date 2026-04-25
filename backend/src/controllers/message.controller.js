@@ -5,10 +5,28 @@ import Message from "../models/message.model.js";
 import cloudinary from "../lib/cloudinary.js";
 import { getReceiverSocketId, io } from "../lib/socket.js";
 
+// export const getUsersForSidebar = async (req, res) => {
+//   try {
+//     const loggedInUserId = req.user._id;
+//     const filteredUsers = await User.find({ _id: { $ne: loggedInUserId } }).select("-password");
+
+//     res.status(200).json(filteredUsers);
+//   } catch (error) {
+//     console.error("Error in getUsersForSidebar: ", error.message);
+//     res.status(500).json({ error: "Internal server error" });
+//   }
+// };
 export const getUsersForSidebar = async (req, res) => {
   try {
     const loggedInUserId = req.user._id;
-    const filteredUsers = await User.find({ _id: { $ne: loggedInUserId } }).select("-password");
+    const loggedInUser = await User.findById(loggedInUserId);
+
+    const filteredUsers = await User.find({
+      _id: {
+        $ne: loggedInUserId,
+        $nin: loggedInUser.deletedContacts, // ✅ exclude deleted contacts
+      },
+    }).select("-password");
 
     res.status(200).json(filteredUsers);
   } catch (error) {
@@ -94,6 +112,11 @@ export const deleteContact = async (req, res) => {
   try {
     const { contactId } = req.params;
     const userId = req.user._id;
+
+    // Add contactId to deletedContacts list of current user
+    await User.findByIdAndUpdate(userId, {
+      $addToSet: { deletedContacts: contactId }, // $addToSet prevents duplicates
+    });
 
     // Delete all messages between the two users
     await Message.deleteMany({

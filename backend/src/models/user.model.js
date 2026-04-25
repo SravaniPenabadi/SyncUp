@@ -34,6 +34,11 @@ const userSchema = new mongoose.Schema(
       enum: ["everyone", "contacts", "nobody"],
       default: "everyone",
     },
+    deletedContacts: [{
+  type: mongoose.Schema.Types.ObjectId,
+  ref: "User",
+  default: [],
+}],
   },
   { timestamps: true }
 );
