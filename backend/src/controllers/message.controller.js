@@ -59,15 +59,24 @@ export const getMessages = async (req, res) => {
 
 export const sendMessage = async (req, res) => {
   try {
-    const { text, image } = req.body;
+    const { text, image, voice } = req.body;
     const { id: receiverId } = req.params;
     const senderId = req.user._id;
 
     let imageUrl;
+    let voiceUrl;
+
     if (image) {
-      // Upload base64 image to cloudinary
       const uploadResponse = await cloudinary.uploader.upload(image);
       imageUrl = uploadResponse.secure_url;
+    }
+
+    if (voice) {
+      const uploadResponse = await cloudinary.uploader.upload(voice, {
+        resource_type: "video", // Cloudinary uses "video" for audio files
+        folder: "voice_messages",
+      });
+      voiceUrl = uploadResponse.secure_url;
     }
 
     const newMessage = new Message({
@@ -75,6 +84,7 @@ export const sendMessage = async (req, res) => {
       receiverId,
       text,
       image: imageUrl,
+      voice: voiceUrl,
     });
 
     await newMessage.save();
@@ -90,6 +100,7 @@ export const sendMessage = async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 };
+
 export const deleteMessage = async (req, res) => {
   try {
     const { messageId } = req.params;

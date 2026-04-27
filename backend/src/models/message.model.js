@@ -12,16 +12,12 @@ const messageSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
-    text: {
-      type: String,
-    },
-    image: {
-      type: String,
-    },
+    text: { type: String },
+    image: { type: String },
+    voice: { type: String }, // ✅ Cloudinary URL for voice message
   },
   { timestamps: true }
 );
 
 const Message = mongoose.model("Message", messageSchema);
-
 export default Message;
