@@ -12,6 +12,10 @@ const messageSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
+    seen: {
+  type: Boolean,
+  default: false,
+},
     text: { type: String },
     image: { type: String },
     voice: { type: String }, // ✅ Cloudinary URL for voice message

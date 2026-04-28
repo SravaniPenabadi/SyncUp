@@ -39,5 +39,6 @@ router.put("/update-account", protectRoute, updateAccount);
 router.put("/update-privacy", protectRoute, updatePrivacy);
 
 router.get("/check", protectRoute, checkAuth);
+router.get("/last-seen/:userId", protectRoute, getLastSeen);
 
 export default router;

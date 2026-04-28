@@ -122,6 +122,24 @@ export const deleteMessage = async (req, res) => {
   }
 };
 
+export const markMessagesAsSeen = async (req, res) => {
+  try {
+    const { senderId } = req.params;
+    const myId = req.user._id;
+
+    // Mark all messages from senderId to me as seen
+    await Message.updateMany(
+      { senderId: senderId, receiverId: myId, seen: false },
+      { seen: true }
+    );
+
+    res.status(200).json({ message: "Messages marked as seen" });
+  } catch (error) {
+    console.log("Error in markMessagesAsSeen:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 export const deleteContact = async (req, res) => {
   try {
     const { contactId } = req.params;

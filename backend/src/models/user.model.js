@@ -29,6 +29,10 @@ const userSchema = new mongoose.Schema(
       enum: ["everyone", "contacts", "nobody"],
       default: "everyone",
     },
+    lastSeen: {
+  type: Date,
+  default: null,
+},
     profilePhotoVisibility: {
       type: String,
       enum: ["everyone", "contacts", "nobody"],

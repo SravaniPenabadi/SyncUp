@@ -70,6 +70,20 @@ deleteMessage: async (messageId) => {
   }
 },
 
+markMessagesAsSeen: async (senderId) => {
+  try {
+    await axiosInstance.put(`/messages/seen/${senderId}`);
+    // Update seen status locally for instant UI update
+    set((state) => ({
+      messages: state.messages.map((m) =>
+        m.senderId === senderId && !m.seen ? { ...m, seen: true } : m
+      ),
+    }));
+  } catch (error) {
+    console.log("Error marking messages as seen:", error);
+  }
+},
+
 deleteContact: async (contactId) => {
   try {
     await axiosInstance.delete(`/messages/contact/${contactId}`);

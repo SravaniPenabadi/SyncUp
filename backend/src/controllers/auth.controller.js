@@ -193,3 +193,15 @@ export const updatePrivacy = async (req, res) => {
     res.status(500).json({ message: "Internal Server Error" });
   }
 };
+
+export const getLastSeen = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const user = await User.findById(userId).select("lastSeen");
+    if (!user) return res.status(404).json({ message: "User not found" });
+    res.status(200).json({ lastSeen: user.lastSeen });
+  } catch (error) {
+    console.log("Error in getLastSeen:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
