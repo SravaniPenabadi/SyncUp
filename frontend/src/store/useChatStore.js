@@ -109,25 +109,6 @@ getSyncScore: async (userId) => {
   }
 },
 
-// Add to state
-syncScores: {},
-
-// Add action
-getAllSyncScores: async (userIds) => {
-  try {
-    const scores = {};
-    await Promise.all(
-      userIds.map(async (id) => {
-        const res = await axiosInstance.get(`/messages/sync/${id}`);
-        scores[id] = res.data;
-      })
-    );
-    set({ syncScores: scores });
-  } catch (error) {
-    console.log("Error fetching sync scores:", error);
-  }
-},
-
 deleteContact: async (contactId) => {
   try {
     await axiosInstance.delete(`/messages/contact/${contactId}`);

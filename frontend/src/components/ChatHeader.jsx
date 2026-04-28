@@ -1,4 +1,4 @@
-import { X } from "lucide-react";
+import { X, ChevronDown, ChevronUp } from "lucide-react";
 import { useAuthStore } from "../store/useAuthStore";
 import { useChatStore } from "../store/useChatStore";
 import { useEffect, useState } from "react";
@@ -33,32 +33,31 @@ const ChatHeader = () => {
   const { selectedUser, setSelectedUser, getSyncScore, syncScore, syncLabel, syncDetails } = useChatStore();
   const { onlineUsers } = useAuthStore();
   const [lastSeen, setLastSeen] = useState(null);
-  const [showDetails, setShowDetails] = useState(false);
+  const [showSync, setShowSync] = useState(false); // ✅ collapsed by default
 
   const isOnline = onlineUsers.includes(selectedUser._id);
 
   useEffect(() => {
-    // Fetch lastSeen when offline
     if (!isOnline) {
       axiosInstance
         .get(`/auth/last-seen/${selectedUser._id}`)
         .then((res) => setLastSeen(res.data.lastSeen))
         .catch(() => setLastSeen(null));
     }
-    // Fetch sync score on load
     getSyncScore(selectedUser._id);
+    setShowSync(false); // reset when switching chats
   }, [selectedUser._id, isOnline]);
 
   return (
-    <div className="p-2.5 border-b border-base-300">
-      <div className="flex items-center justify-between">
+    <div className="border-b border-base-300">
+      {/* Main header row */}
+      <div className="p-2.5 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="avatar">
             <div className="size-10 rounded-full relative">
               <img src={selectedUser.profilePic || "/avatar.png"} alt={selectedUser.fullName} />
             </div>
           </div>
-
           <div>
             <h3 className="font-medium">{selectedUser.fullName}</h3>
             <p className="text-sm text-base-content/70">
@@ -71,43 +70,54 @@ const ChatHeader = () => {
           </div>
         </div>
 
-        {/* Sync Meter — right side */}
-        <div className="flex items-center gap-3">
-          <div
-            className="relative group cursor-pointer"
-            onClick={() => setShowDetails((prev) => !prev)}
+        <div className="flex items-center gap-2">
+          {/* ✅ Toggle button */}
+          <button
+            onClick={() => setShowSync((prev) => !prev)}
+            className="btn btn-ghost btn-sm gap-1 text-xs"
+            title="Toggle Sync Meter"
           >
-            <SyncMeter score={syncScore} label={syncLabel} details={syncDetails} size="md" />
-
-            {/* Details popup on click */}
-            {showDetails && syncDetails && (
-              <div className="absolute right-0 top-16 z-50 bg-base-100 border border-base-300 rounded-xl shadow-lg p-3 w-44 text-xs space-y-1.5">
-                <p className="font-semibold text-sm mb-2">Sync Details</p>
-                <div className="flex justify-between">
-                  <span className="text-zinc-400">💬 Messages</span>
-                  <span className="font-medium">{syncDetails.messagesLast7Days}/week</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-zinc-400">⚡ Avg Reply</span>
-                  <span className="font-medium">{syncDetails.avgReplySpeed} min</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-zinc-400">🔥 Streak</span>
-                  <span className="font-medium">{syncDetails.activeDaysStreak} days</span>
-                </div>
-                <div className="flex justify-between border-t border-base-300 pt-1.5 mt-1">
-                  <span className="text-zinc-400">Score</span>
-                  <span className="font-bold">{syncScore}/100</span>
-                </div>
-              </div>
-            )}
-          </div>
+            <span className="hidden sm:inline">Sync</span>
+            {showSync ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </button>
 
           <button onClick={() => setSelectedUser(null)}>
             <X />
           </button>
         </div>
       </div>
+
+      {/* ✅ Collapsible sync panel */}
+      {showSync && (
+        <div className="px-4 pb-3 flex items-center gap-6 bg-base-200/50 animate-in slide-in-from-top-2 duration-200">
+          <SyncMeter score={syncScore} label={syncLabel} size="md" />
+
+          {syncDetails && (
+            <div className="flex gap-4 text-xs text-zinc-400">
+              <div className="flex flex-col items-center gap-0.5">
+                <span className="text-base">💬</span>
+                <span className="font-medium text-base-content">{syncDetails.messagesLast7Days}</span>
+                <span>msgs/week</span>
+              </div>
+              <div className="flex flex-col items-center gap-0.5">
+                <span className="text-base">⚡</span>
+                <span className="font-medium text-base-content">{syncDetails.avgReplySpeed}m</span>
+                <span>avg reply</span>
+              </div>
+              <div className="flex flex-col items-center gap-0.5">
+                <span className="text-base">🔥</span>
+                <span className="font-medium text-base-content">{syncDetails.activeDaysStreak}</span>
+                <span>day streak</span>
+              </div>
+              <div className="flex flex-col items-center gap-0.5">
+                <span className="text-base">📊</span>
+                <span className="font-medium text-base-content">{syncScore}/100</span>
+                <span>score</span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };
