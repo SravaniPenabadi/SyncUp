@@ -24,6 +24,7 @@ import {
   updateProfileInfo,
   updateAccount,
   updatePrivacy,
+  getLastSeen,
 } from "../controllers/auth.controller.js";
 import { protectRoute } from "../middleware/auth.middleware.js";
 
