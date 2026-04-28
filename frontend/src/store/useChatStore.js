@@ -83,6 +83,50 @@ markMessagesAsSeen: async (senderId) => {
     console.log("Error marking messages as seen:", error);
   }
 },
+// Add to state
+syncScore: null,
+syncLabel: "",
+isSyncLoading: false,
+
+// Add action
+getSyncScore: async (userId) => {
+  set({ isSyncLoading: true });
+  try {
+    const res = await axiosInstance.get(`/messages/sync/${userId}`);
+    set({
+      syncScore: res.data.syncScore,
+      syncLabel: res.data.label,
+      syncDetails: {
+        messagesLast7Days: res.data.messagesLast7Days,
+        avgReplySpeed: res.data.avgReplySpeed,
+        activeDaysStreak: res.data.activeDaysStreak,
+      },
+    });
+  } catch (error) {
+    console.log("Error fetching sync score:", error);
+  } finally {
+    set({ isSyncLoading: false });
+  }
+},
+
+// Add to state
+syncScores: {},
+
+// Add action
+getAllSyncScores: async (userIds) => {
+  try {
+    const scores = {};
+    await Promise.all(
+      userIds.map(async (id) => {
+        const res = await axiosInstance.get(`/messages/sync/${id}`);
+        scores[id] = res.data;
+      })
+    );
+    set({ syncScores: scores });
+  } catch (error) {
+    console.log("Error fetching sync scores:", error);
+  }
+},
 
 deleteContact: async (contactId) => {
   try {

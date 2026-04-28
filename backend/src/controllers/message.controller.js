@@ -139,6 +139,77 @@ export const markMessagesAsSeen = async (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
 };
+export const getSyncScore = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const myId = req.user._id;
+
+    const now = new Date();
+    const sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
+
+    // Get all messages between both users in last 7 days
+    const recentMessages = await Message.find({
+      $or: [
+        { senderId: myId, receiverId: userId },
+        { senderId: userId, receiverId: myId },
+      ],
+      createdAt: { $gte: sevenDaysAgo },
+    }).sort({ createdAt: 1 });
+
+    // 1. Messages last 7 days
+    const messagesLast7Days = recentMessages.length;
+
+    // 2. Average reply speed (in minutes)
+    let totalReplyTime = 0;
+    let replyCount = 0;
+    for (let i = 1; i < recentMessages.length; i++) {
+      const prev = recentMessages[i - 1];
+      const curr = recentMessages[i];
+      // Only count if different sender (it's a reply)
+      if (prev.senderId.toString() !== curr.senderId.toString()) {
+        const diff = (new Date(curr.createdAt) - new Date(prev.createdAt)) / 60000;
+        if (diff < 60) { // ignore gaps longer than 1 hour
+          totalReplyTime += diff;
+          replyCount++;
+        }
+      }
+    }
+    const avgReplySpeed = replyCount > 0 ? totalReplyTime / replyCount : 99;
+
+    // 3. Active days streak
+    const activeDays = new Set(
+      recentMessages.map((m) => new Date(m.createdAt).toDateString())
+    );
+    const activeDaysStreak = activeDays.size;
+
+    // 4. Formula
+    const rawScore =
+      messagesLast7Days * 2 +
+      (avgReplySpeed < 5 ? 20 : avgReplySpeed < 15 ? 10 : 5) +
+      activeDaysStreak * 3;
+
+    // 5. Normalize to 0-100
+    const maxPossible = 7 * 2 * 10 + 20 + 7 * 3; // rough max
+    const syncScore = Math.min(100, Math.round((rawScore / maxPossible) * 100));
+
+    // 6. Label
+    let label = "";
+    if (syncScore < 30) label = "Low Sync";
+    else if (syncScore < 70) label = "In Sync";
+    else label = "Besties 💀";
+
+    res.status(200).json({
+      syncScore,
+      label,
+      messagesLast7Days,
+      avgReplySpeed: Math.round(avgReplySpeed),
+      activeDaysStreak,
+    });
+  } catch (error) {
+    console.log("Error in getSyncScore:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
 
 export const deleteContact = async (req, res) => {
   try {
