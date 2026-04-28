@@ -1,114 +1,119 @@
-/* :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
-
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
-
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
-
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
-}
-
-body {
-  margin: 0;
-}
-
-#app {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
-}
-
-h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
-}
-
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
-  }
-}
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
-  }
-}
-p {
-  margin: 0;
-}
-
-code,
-.counter {
-  font-family: var(--mono);
-  display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
-}
-
-code {
-  font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
-} */
+/* frontend/src/index.css  (UPGRADED) */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ── Design tokens ─────────────────────────────────────────── */
+:root {
+  --bg-base:    #0f172a;
+  --bg-card:    #1e293b;
+  --bg-input:   #0f172a;
+  --accent:     #6366f1;
+  --accent-glow:rgba(99,102,241,0.35);
+  --green:      #22c55e;
+  --text-1:     #e2e8f0;
+  --text-2:     #94a3b8;
+  --border:     rgba(255,255,255,0.06);
+}
+
+/* ── Base ──────────────────────────────────────────────────── */
+html, body, #root {
+  height: 100%;
+  background: var(--bg-base);
+  color: var(--text-1);
+}
+
+/* ── Scrollbar ─────────────────────────────────────────────── */
+::-webkit-scrollbar       { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.18); }
+
+/* ── Message bubble entrance ───────────────────────────────── */
+@keyframes bubbleIn {
+  from { opacity: 0; transform: translateY(6px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ── Typing indicator dots ─────────────────────────────────── */
+.typing-dot {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--text-2);
+  animation: typingBounce 1.2s infinite ease-in-out;
+}
+@keyframes typingBounce {
+  0%, 60%, 100% { transform: translateY(0); }
+  30%           { transform: translateY(-4px); }
+}
+
+/* ── DaisyUI overrides: force our dark palette ─────────────── */
+[data-theme] {
+  --b1: #0f172a;    /* base-100 */
+  --b2: #1e293b;    /* base-200 */
+  --b3: #263347;    /* base-300 */
+  --bc: #e2e8f0;    /* base-content */
+  --p:  #6366f1;    /* primary */
+  --s:  #22c55e;    /* secondary */
+  --er: #ef4444;    /* error */
+}
+
+/* ── NoChatSelected placeholder ────────────────────────────── */
+.no-chat-glow {
+  box-shadow: 0 0 80px rgba(99,102,241,0.08);
+}
+
+/* ── SyncMeter gauge ───────────────────────────────────────── */
+.sync-gauge-btn {
+  width: 52px;
+  height: 52px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  position: relative;
+  outline: none;
+  padding: 0;
+}
+
+.sync-gauge-btn:hover .sync-gauge-svg {
+  transform: scale(1.08);
+}
+
+.sync-gauge-svg {
+  transition: transform 0.3s ease;
+}
+
+.sync-gauge-fill {
+  transition: stroke-dasharray 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sync-gauge-skeleton {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.06);
+}
+
+/* ── SyncMeter tooltip ─────────────────────────────────────── */
+.sync-tooltip {
+  animation: tooltipFadeIn 0.2s ease-out;
+}
+
+@keyframes tooltipFadeIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(-4px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* ── Menu dropdown animation ───────────────────────────────── */
+@keyframes menuFadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Modal animation ───────────────────────────────────────── */
+@keyframes modalFadeIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}

@@ -119,7 +119,13 @@ updatePrivacy: async (data) => {
 
   connectSocket: () => {
     const { authUser } = get();
-    if (!authUser || get().socket?.connected) return;
+    const existingSocket = get().socket;
+
+    if (!authUser) return;
+    if (existingSocket?.connected) return;
+    if (existingSocket) {
+      existingSocket.disconnect();
+    }
 
     const socket = io(BASE_URL, {
       query: { userId: authUser._id },
@@ -133,6 +139,8 @@ updatePrivacy: async (data) => {
   },
 
   disconnectSocket: () => {
-    if (get().socket?.connected) get().socket.disconnect();
+    const socket = get().socket;
+    if (socket?.connected) socket.disconnect();
+    set({ socket: null, onlineUsers: [] });
   },
 }));

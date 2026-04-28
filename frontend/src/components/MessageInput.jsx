@@ -1,47 +1,85 @@
-import { useRef, useState, useEffect } from "react";
+// frontend/src/components/MessageInput.jsx  (UPGRADED)
+// Key changes:
+//   1. Emits "typing" / "stopTyping" socket events
+//   2. Dark-themed styling with indigo accents
+//   3. Cleaner layout using inline styles matching design system
+
+import { useRef, useState, useEffect, useCallback } from "react";
 import { useChatStore } from "../store/useChatStore";
+import { useAuthStore } from "../store/useAuthStore";
 import { Image, Send, X, Smile, Mic, Square, Play, Pause, Trash2 } from "lucide-react";
 import toast from "react-hot-toast";
 import EmojiPicker from "emoji-picker-react";
+
+const BTN_STYLE = {
+  base: "flex items-center justify-center w-9 h-9 rounded-xl transition-colors cursor-pointer",
+  muted: { color: "#94a3b8" },
+  accent: { color: "#6366f1" },
+};
 
 const MessageInput = () => {
   const [text, setText] = useState("");
   const [imagePreview, setImagePreview] = useState(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-
-  // Voice recording states
   const [isRecording, setIsRecording] = useState(false);
   const [voiceBlob, setVoiceBlob] = useState(null);
   const [voiceUrl, setVoiceUrl] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
 
-  const fileInputRef = useRef(null);
+  const fileInputRef   = useRef(null);
   const emojiPickerRef = useRef(null);
   const mediaRecorderRef = useRef(null);
-  const audioChunksRef = useRef([]);
-  const audioRef = useRef(null);
-  const timerRef = useRef(null);
+  const audioChunksRef   = useRef([]);
+  const audioRef       = useRef(null);
+  const timerRef       = useRef(null);
+  const typingTimerRef = useRef(null);
+  const isTypingRef    = useRef(false);
 
-  const { sendMessage } = useChatStore();
+  const { sendMessage, selectedUser } = useChatStore();
+  const { socket }                    = useAuthStore();
 
-  // Close emoji picker on outside click
+  // ── Typing events ────────────────────────────────────────────
+  const emitTyping = useCallback(() => {
+    if (!socket || !selectedUser) return;
+    if (!isTypingRef.current) {
+      isTypingRef.current = true;
+      socket.emit("typing", { receiverId: selectedUser._id });
+    }
+    clearTimeout(typingTimerRef.current);
+    typingTimerRef.current = setTimeout(() => {
+      isTypingRef.current = false;
+      socket.emit("stopTyping", { receiverId: selectedUser._id });
+    }, 2000);
+  }, [socket, selectedUser]);
+
+  const handleTextChange = (e) => {
+    setText(e.target.value);
+    emitTyping();
+  };
+
+  // Stop typing when component unmounts
+  useEffect(() => () => {
+    clearTimeout(typingTimerRef.current);
+    if (socket && selectedUser && isTypingRef.current) {
+      socket.emit("stopTyping", { receiverId: selectedUser._id });
+    }
+  }, [socket, selectedUser]);
+
+  // ── Emoji picker outside click ────────────────────────────────
   useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (emojiPickerRef.current && !emojiPickerRef.current.contains(e.target)) {
+    const handler = (e) => {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(e.target))
         setShowEmojiPicker(false);
-      }
     };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  // Recording timer
+  // ── Recording timer ───────────────────────────────────────────
   useEffect(() => {
     if (isRecording) {
-      timerRef.current = setInterval(() => {
-        setRecordingTime((prev) => prev + 1);
-      }, 1000);
+      timerRef.current = setInterval(() => setRecordingTime((p) => p + 1), 1000);
     } else {
       clearInterval(timerRef.current);
       setRecordingTime(0);
@@ -49,252 +87,170 @@ const MessageInput = () => {
     return () => clearInterval(timerRef.current);
   }, [isRecording]);
 
-  const formatTime = (seconds) => {
-    const m = Math.floor(seconds / 60).toString().padStart(2, "0");
-    const s = (seconds % 60).toString().padStart(2, "0");
-    return `${m}:${s}`;
-  };
+  const formatTime = (s) =>
+    `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 
-  // Emoji
-  const handleEmojiClick = (emojiData) => {
-    setText((prev) => prev + emojiData.emoji);
-  };
-
-  // Image
+  // ── Image ─────────────────────────────────────────────────────
   const handleImageChange = (e) => {
     const file = e.target.files[0];
-    if (!file.type.startsWith("image/")) {
-      toast.error("Please select an image file");
-      return;
-    }
+    if (!file?.type.startsWith("image/")) return toast.error("Please select an image file");
     const reader = new FileReader();
     reader.onloadend = () => setImagePreview(reader.result);
     reader.readAsDataURL(file);
   };
+  const removeImage = () => { setImagePreview(null); if (fileInputRef.current) fileInputRef.current.value = ""; };
 
-  const removeImage = () => {
-    setImagePreview(null);
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  };
-
-  // Voice recording
+  // ── Voice ─────────────────────────────────────────────────────
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
-
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) audioChunksRef.current.push(e.data);
-      };
-
+      mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
       mediaRecorder.onstop = () => {
         const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
-        const url = URL.createObjectURL(blob);
         setVoiceBlob(blob);
-        setVoiceUrl(url);
-        stream.getTracks().forEach((track) => track.stop());
+        setVoiceUrl(URL.createObjectURL(blob));
+        stream.getTracks().forEach((t) => t.stop());
       };
-
       mediaRecorder.start();
       setIsRecording(true);
-    } catch (error) {
+    } catch {
       toast.error("Microphone access denied");
     }
   };
-
   const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-    }
+    if (mediaRecorderRef.current && isRecording) { mediaRecorderRef.current.stop(); setIsRecording(false); }
   };
-
   const discardVoice = () => {
-    setVoiceBlob(null);
-    setVoiceUrl(null);
-    setIsPlaying(false);
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current = null;
-    }
+    setVoiceBlob(null); setVoiceUrl(null); setIsPlaying(false);
+    audioRef.current?.pause(); audioRef.current = null;
   };
-
   const togglePlayVoice = () => {
     if (!voiceUrl) return;
-    if (isPlaying) {
-      audioRef.current?.pause();
-      setIsPlaying(false);
-    } else {
+    if (isPlaying) { audioRef.current?.pause(); setIsPlaying(false); }
+    else {
       const audio = new Audio(voiceUrl);
       audioRef.current = audio;
-      audio.play();
-      setIsPlaying(true);
+      audio.play(); setIsPlaying(true);
       audio.onended = () => setIsPlaying(false);
     }
   };
-
-  // Convert blob to base64 for upload
   const blobToBase64 = (blob) =>
-    new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result);
-      reader.readAsDataURL(blob);
-    });
+    new Promise((res) => { const r = new FileReader(); r.onloadend = () => res(r.result); r.readAsDataURL(blob); });
 
-  // Send message
-  const handleSendMessage = async (e) => {
+  // ── Send ──────────────────────────────────────────────────────
+  const handleSend = async (e) => {
     e.preventDefault();
     if (!text.trim() && !imagePreview && !voiceBlob) return;
-
     try {
-      let voiceBase64 = null;
-      if (voiceBlob) {
-        voiceBase64 = await blobToBase64(voiceBlob);
-      }
+      // Stop typing signal immediately
+      clearTimeout(typingTimerRef.current);
+      isTypingRef.current = false;
+      socket?.emit("stopTyping", { receiverId: selectedUser._id });
 
       await sendMessage({
         text: text.trim(),
         image: imagePreview,
-        voice: voiceBase64,
+        voice: voiceBlob ? await blobToBase64(voiceBlob) : null,
       });
-
-      setText("");
-      setImagePreview(null);
-      discardVoice();
+      setText(""); setImagePreview(null); discardVoice();
       if (fileInputRef.current) fileInputRef.current.value = "";
-    } catch (error) {
-      console.error("Failed to send message:", error);
+    } catch {
+      console.error("Send failed");
     }
   };
 
   return (
-    <div className="p-4 w-full">
-      {/* Image Preview */}
+    <div
+      className="p-3"
+      style={{ background: "#1e293b", borderTop: "1px solid rgba(255,255,255,0.06)" }}
+    >
+      {/* Image preview */}
       {imagePreview && (
-        <div className="mb-3 flex items-center gap-2">
+        <div className="mb-2 flex items-center gap-2">
           <div className="relative">
-            <img
-              src={imagePreview}
-              alt="Preview"
-              className="w-20 h-20 object-cover rounded-lg border border-zinc-700"
-            />
-            <button
-              onClick={removeImage}
-              className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-base-300 flex items-center justify-center"
-              type="button"
-            >
-              <X className="size-3" />
+            <img src={imagePreview} alt="preview" className="w-16 h-16 object-cover rounded-xl" />
+            <button onClick={removeImage} className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center" style={{ background: "#0f172a", color: "#94a3b8" }}>
+              <X size={11} />
             </button>
           </div>
         </div>
       )}
 
-      {/* Voice Preview */}
+      {/* Voice preview */}
       {voiceBlob && !isRecording && (
-        <div className="mb-3 flex items-center gap-3 bg-base-200 rounded-xl px-4 py-2">
-          <button
-            type="button"
-            onClick={togglePlayVoice}
-            className="btn btn-circle btn-sm btn-primary"
-          >
-            {isPlaying ? <Pause size={14} /> : <Play size={14} />}
+        <div className="mb-2 flex items-center gap-2 rounded-xl px-3 py-2" style={{ background: "#0f172a" }}>
+          <button type="button" onClick={togglePlayVoice} className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: "#6366f1", color: "#fff" }}>
+            {isPlaying ? <Pause size={12} /> : <Play size={12} />}
           </button>
-          <div className="flex-1 h-1.5 bg-base-300 rounded-full">
-            <div className="h-full w-1/3 bg-primary rounded-full" />
+          <div className="flex-1 h-1 rounded-full" style={{ background: "rgba(255,255,255,0.1)" }}>
+            <div className="h-full w-1/3 rounded-full" style={{ background: "#6366f1" }} />
           </div>
-          <span className="text-xs text-zinc-400">Voice message</span>
-          <button
-            type="button"
-            onClick={discardVoice}
-            className="btn btn-circle btn-ghost btn-xs text-red-400 hover:text-red-600"
-          >
-            <Trash2 size={14} />
-          </button>
+          <span className="text-xs" style={{ color: "#94a3b8" }}>Voice</span>
+          <button type="button" onClick={discardVoice} style={{ color: "#ef4444" }}><Trash2 size={13} /></button>
         </div>
       )}
 
       {/* Recording indicator */}
       {isRecording && (
-        <div className="mb-3 flex items-center gap-3 bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-2">
-          <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
-          <span className="text-sm text-red-500 font-medium">Recording... {formatTime(recordingTime)}</span>
+        <div className="mb-2 flex items-center gap-2 rounded-xl px-3 py-2" style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)" }}>
+          <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: "#ef4444" }} />
+          <span className="text-xs font-medium" style={{ color: "#ef4444" }}>Recording… {formatTime(recordingTime)}</span>
         </div>
       )}
 
-      <form onSubmit={handleSendMessage} className="flex items-center gap-2">
+      {/* Input row */}
+      <form onSubmit={handleSend} className="flex items-center gap-2">
 
-        {/* Emoji Picker */}
+        {/* Emoji */}
         <div className="relative" ref={emojiPickerRef}>
-          <button
-            type="button"
-            onClick={() => setShowEmojiPicker((prev) => !prev)}
-            className={`btn btn-circle btn-sm ${showEmojiPicker ? "text-primary" : "text-zinc-400"}`}
-          >
-            <Smile size={20} />
+          <button type="button" onClick={() => setShowEmojiPicker((p) => !p)}
+            className={BTN_STYLE.base} style={showEmojiPicker ? BTN_STYLE.accent : BTN_STYLE.muted}>
+            <Smile size={18} />
           </button>
           {showEmojiPicker && (
             <div className="absolute bottom-12 left-0 z-50">
-              <EmojiPicker
-                onEmojiClick={handleEmojiClick}
-                theme="auto"
-                height={400}
-                width={320}
-                searchPlaceholder="Search emoji..."
-              />
+              <EmojiPicker onEmojiClick={(d) => setText((p) => p + d.emoji)} theme="dark" height={380} width={300} />
             </div>
           )}
         </div>
 
-        <div className="flex-1 flex gap-2">
-          <input
-            type="text"
-            className="w-full input input-bordered rounded-lg input-sm sm:input-md"
-            placeholder={isRecording ? "Recording..." : "Type a message..."}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            disabled={isRecording}
-          />
-          <input
-            type="file"
-            accept="image/*"
-            className="hidden"
-            ref={fileInputRef}
-            onChange={handleImageChange}
-          />
-          <button
-            type="button"
-            className={`hidden sm:flex btn btn-circle ${imagePreview ? "text-emerald-500" : "text-zinc-400"}`}
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isRecording}
-          >
-            <Image size={20} />
-          </button>
-        </div>
+        {/* Text input */}
+        <input
+          type="text"
+          value={text}
+          onChange={handleTextChange}
+          disabled={isRecording}
+          placeholder={isRecording ? "Recording…" : "Type a message…"}
+          className="flex-1 text-sm rounded-xl px-4 py-2.5 outline-none transition-colors"
+          style={{ background: "#0f172a", color: "#e2e8f0", border: "1px solid rgba(255,255,255,0.08)" }}
+          onFocus={(e) => (e.target.style.borderColor = "rgba(99,102,241,0.5)")}
+          onBlur={(e) => (e.target.style.borderColor = "rgba(255,255,255,0.08)")}
+        />
+        <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={handleImageChange} />
 
-        {/* Mic button */}
+        {/* Image attach */}
+        <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isRecording}
+          className={BTN_STYLE.base} style={imagePreview ? { color: "#22c55e" } : BTN_STYLE.muted}>
+          <Image size={18} />
+        </button>
+
+        {/* Mic */}
         {!voiceBlob && (
-          <button
-            type="button"
-            onMouseDown={startRecording}
-            onMouseUp={stopRecording}
-            onTouchStart={startRecording}
-            onTouchEnd={stopRecording}
-            className={`btn btn-circle btn-sm ${isRecording ? "btn-error animate-pulse" : "text-zinc-400"}`}
-            title="Hold to record"
-          >
-            {isRecording ? <Square size={16} /> : <Mic size={20} />}
+          <button type="button" onMouseDown={startRecording} onMouseUp={stopRecording}
+            onTouchStart={startRecording} onTouchEnd={stopRecording}
+            className={BTN_STYLE.base} style={isRecording ? { color: "#ef4444", background: "rgba(239,68,68,0.15)" } : BTN_STYLE.muted}>
+            {isRecording ? <Square size={15} /> : <Mic size={18} />}
           </button>
         )}
 
-        {/* Send button */}
-        <button
-          type="submit"
-          className="btn btn-sm btn-circle"
-          disabled={!text.trim() && !imagePreview && !voiceBlob}
-        >
-          <Send size={22} />
+        {/* Send */}
+        <button type="submit" disabled={!text.trim() && !imagePreview && !voiceBlob}
+          className={`${BTN_STYLE.base} transition-all`}
+          style={{ background: "#6366f1", color: "#fff", opacity: (!text.trim() && !imagePreview && !voiceBlob) ? 0.4 : 1 }}>
+          <Send size={16} />
         </button>
       </form>
     </div>

@@ -2,6 +2,8 @@ import Group from "../models/group.model.js";
 import User from "../models/user.model.js";
 import cloudinary from "../lib/cloudinary.js";
 
+const getAppNamespace = () => process.env.APP_NAMESPACE || "syncup-default";
+
 // Create a new group
 export const createGroup = async (req, res) => {
   try {
@@ -49,23 +51,37 @@ export const getMyGroups = async (req, res) => {
   }
 };
 
-// Add contact (just fetch user by email)
+// Add contact — find user by email within same namespace, add to contacts whitelist
 export const addContact = async (req, res) => {
   try {
     const { email } = req.body;
     const loggedInUserId = req.user._id;
+    const appNamespace = req.user.appNamespace || getAppNamespace();
 
     if (!email) return res.status(400).json({ message: "Email is required" });
 
-    const user = await User.findOne({ email }).select("-password");
+    // Filter by appNamespace so you can't add users from other app instances
+    const user = await User.findOne({
+      email: email.trim().toLowerCase(),
+      appNamespace,
+    }).select("-password");
+
     if (!user) return res.status(404).json({ message: "No user found with that email" });
 
     if (user._id.toString() === loggedInUserId.toString()) {
       return res.status(400).json({ message: "You cannot add yourself" });
     }
 
-    // Remove from deletedContacts if previously deleted
+    // Check if already in contacts
+    const me = await User.findById(loggedInUserId).select("contacts deletedContacts");
+    const myContacts = me?.contacts || [];
+
+    if (myContacts.some((c) => c.toString() === user._id.toString())) {
+      return res.status(400).json({ message: "Contact already added" });
+    }
+
     await User.findByIdAndUpdate(loggedInUserId, {
+      $addToSet: { contacts: user._id },
       $pull: { deletedContacts: user._id },
     });
 

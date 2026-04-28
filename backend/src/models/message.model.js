@@ -14,7 +14,15 @@ const messageSchema = new mongoose.Schema(
     },
     text: { type: String },
     image: { type: String },
-    voice: { type: String }, // ✅ Cloudinary URL for voice message
+    voice: { type: String },
+    seen: {
+      type: Boolean,
+      default: false,
+    },
+    seenAt: {
+      type: Date,
+      default: null,
+    },
   },
   { timestamps: true }
 );

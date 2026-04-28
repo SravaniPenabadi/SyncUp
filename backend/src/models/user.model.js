@@ -5,11 +5,13 @@ const userSchema = new mongoose.Schema(
     email: {
       type: String,
       required: true,
-      unique: true,
+      lowercase: true,
+      trim: true,
     },
     fullName: {
       type: String,
       required: true,
+      trim: true,
     },
     password: {
       type: String,
@@ -34,14 +36,30 @@ const userSchema = new mongoose.Schema(
       enum: ["everyone", "contacts", "nobody"],
       default: "everyone",
     },
-    deletedContacts: [{
-  type: mongoose.Schema.Types.ObjectId,
-  ref: "User",
-  default: [],
-}],
+    appNamespace: {
+      type: String,
+      required: true,
+      default: () => process.env.APP_NAMESPACE || "syncup-default",
+      index: true,
+    },
+    contacts: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
+    deletedContacts: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        default: [],
+      },
+    ],
   },
   { timestamps: true }
 );
+
+userSchema.index({ email: 1, appNamespace: 1 }, { unique: true });
 
 const User = mongoose.model("User", userSchema);
 

@@ -1,9 +1,9 @@
 import jwt from "jsonwebtoken";
 import User from "../models/user.model.js";
 
-
 export const protectRoute = async (req, res, next) => {
   try {
+    const appNamespace = process.env.APP_NAMESPACE || "syncup-default";
     const token = req.cookies.jwt;
 
     if (!token) {
@@ -22,11 +22,20 @@ export const protectRoute = async (req, res, next) => {
       return res.status(404).json({ message: "User not found" });
     }
 
+    if ((user.appNamespace || appNamespace) !== appNamespace) {
+      return res.status(403).json({ message: "Unauthorized app namespace" });
+    }
+
     req.user = user;
 
-    next();
+    return next();
   } catch (error) {
     console.log("Error in protectRoute middleware: ", error.message);
-    res.status(500).json({ message: "Internal server error" });
+
+    if (error.name === "JsonWebTokenError" || error.name === "TokenExpiredError") {
+      return res.status(401).json({ message: "Unauthorized - Invalid Token" });
+    }
+
+    return res.status(500).json({ message: "Internal server error" });
   }
 };

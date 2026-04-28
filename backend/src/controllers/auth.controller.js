@@ -1,55 +1,81 @@
+import bcrypt from "bcryptjs";
 import cloudinary from "../lib/cloudinary.js";
 import { generateToken } from "../lib/utils.js";
 import User from "../models/user.model.js";
-import bcrypt from "bcryptjs";
+
+const getAppNamespace = () => process.env.APP_NAMESPACE || "syncup-default";
+
+const adoptLegacyNamespaceUser = async (user, appNamespace) => {
+  if (!user) return null;
+  if (user.appNamespace) return user;
+
+  user.appNamespace = appNamespace;
+  if (!Array.isArray(user.contacts)) user.contacts = [];
+  if (!Array.isArray(user.deletedContacts)) user.deletedContacts = [];
+  await user.save();
+  return user;
+};
+
 export const signup = async (req, res) => {
   const { fullName, email, password } = req.body;
+  const normalizedEmail = email?.trim().toLowerCase();
+  const appNamespace = getAppNamespace();
+
   try {
-    if (!fullName || !email || !password) {
+    if (!fullName || !normalizedEmail || !password) {
       return res.status(400).json({ message: "All fields are required" });
     }
 
     if (password.length < 6) {
-      return res.status(400).json({ message: "Password must be at least 6 characters" });
+      return res
+        .status(400)
+        .json({ message: "Password must be at least 6 characters" });
     }
 
-    const user = await User.findOne({ email });
+    const existingUser = await User.findOne({
+      email: normalizedEmail,
+      $or: [{ appNamespace }, { appNamespace: { $exists: false } }, { appNamespace: null }],
+    });
 
-    if (user) return res.status(400).json({ message: "Email already exists" });
+    if (existingUser) {
+      return res.status(400).json({ message: "Email already exists" });
+    }
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
     const newUser = new User({
-      fullName,
-      email,
+      fullName: fullName.trim(),
+      email: normalizedEmail,
       password: hashedPassword,
+      appNamespace,
     });
 
-    if (newUser) {
-      // generate jwt token here
-      generateToken(newUser._id, res);
-      await newUser.save();
+    generateToken(newUser._id, res);
+    await newUser.save();
 
-      res.status(201).json({
-        _id: newUser._id,
-        fullName: newUser.fullName,
-        email: newUser.email,
-        profilePic: newUser.profilePic,
-      });
-    } else {
-      res.status(400).json({ message: "Invalid user data" });
-    }
+    return res.status(201).json({
+      _id: newUser._id,
+      fullName: newUser.fullName,
+      email: newUser.email,
+      profilePic: newUser.profilePic,
+    });
   } catch (error) {
     console.log("Error in signup controller", error.message);
-    res.status(500).json({ message: "Internal Server Error" });
+    return res.status(500).json({ message: "Internal Server Error" });
   }
 };
 
 export const login = async (req, res) => {
   const { email, password } = req.body;
+  const normalizedEmail = email?.trim().toLowerCase();
+  const appNamespace = getAppNamespace();
+
   try {
-    const user = await User.findOne({ email });
+    let user = await User.findOne({
+      email: normalizedEmail,
+      $or: [{ appNamespace }, { appNamespace: { $exists: false } }, { appNamespace: null }],
+    });
 
     if (!user) {
       return res.status(400).json({ message: "Invalid credentials" });
@@ -60,9 +86,11 @@ export const login = async (req, res) => {
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
+    user = await adoptLegacyNamespaceUser(user, appNamespace);
+
     generateToken(user._id, res);
 
-    res.status(200).json({
+    return res.status(200).json({
       _id: user._id,
       fullName: user.fullName,
       email: user.email,
@@ -70,18 +98,17 @@ export const login = async (req, res) => {
     });
   } catch (error) {
     console.log("Error in login controller", error.message);
-    res.status(500).json({ message: "Internal Server Error" });
+    return res.status(500).json({ message: "Internal Server Error" });
   }
 };
-
 
 export const logout = (req, res) => {
   try {
     res.cookie("jwt", "", { maxAge: 0 });
-    res.status(200).json({ message: "Logged out successfully" });
+    return res.status(200).json({ message: "Logged out successfully" });
   } catch (error) {
     console.log("Error in logout controller", error.message);
-    res.status(500).json({ message: "Internal Server Error" });
+    return res.status(500).json({ message: "Internal Server Error" });
   }
 };
 
@@ -99,31 +126,31 @@ export const updateProfile = async (req, res) => {
       userId,
       { profilePic: uploadResponse.secure_url },
       { new: true }
-    );
+    ).select("-password");
 
-    res.status(200).json(updatedUser);
+    return res.status(200).json(updatedUser);
   } catch (error) {
     console.log("error in update profile:", error);
-    res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: "Internal server error" });
   }
 };
 
 export const checkAuth = (req, res) => {
   try {
-    res.status(200).json(req.user);
+    return res.status(200).json(req.user);
   } catch (error) {
     console.log("Error in checkAuth controller", error.message);
-    res.status(500).json({ message: "Internal Server Error" });
+    return res.status(500).json({ message: "Internal Server Error" });
   }
 };
-// Update profile (name, bio, avatar)
+
 export const updateProfileInfo = async (req, res) => {
   try {
     const { fullName, bio, profilePic } = req.body;
     const userId = req.user._id;
 
     const updates = {};
-    if (fullName) updates.fullName = fullName;
+    if (fullName) updates.fullName = fullName.trim();
     if (bio !== undefined) updates.bio = bio;
 
     if (profilePic) {
@@ -131,35 +158,63 @@ export const updateProfileInfo = async (req, res) => {
       updates.profilePic = uploadResponse.secure_url;
     }
 
-    const updatedUser = await User.findByIdAndUpdate(userId, updates, { new: true }).select("-password");
-    res.status(200).json(updatedUser);
+    const updatedUser = await User.findByIdAndUpdate(userId, updates, {
+      new: true,
+    }).select("-password");
+
+    return res.status(200).json(updatedUser);
   } catch (error) {
     console.log("Error in updateProfileInfo:", error.message);
-    res.status(500).json({ message: "Internal Server Error" });
+    return res.status(500).json({ message: "Internal Server Error" });
   }
 };
 
-// Update account (email, password)
 export const updateAccount = async (req, res) => {
   try {
     const { email, currentPassword, newPassword } = req.body;
     const userId = req.user._id;
+    const appNamespace = getAppNamespace();
 
     const user = await User.findById(userId);
-
     const updates = {};
 
-    if (email && email !== user.email) {
-      const emailExists = await User.findOne({ email });
-      if (emailExists) return res.status(400).json({ message: "Email already in use" });
-      updates.email = email;
+    if (email) {
+      const normalizedEmail = email.trim().toLowerCase();
+      if (normalizedEmail !== user.email) {
+        const emailExists = await User.findOne({
+          email: normalizedEmail,
+          appNamespace,
+          _id: { $ne: userId },
+        });
+
+        if (emailExists) {
+          return res.status(400).json({ message: "Email already in use" });
+        }
+
+        updates.email = normalizedEmail;
+      }
     }
 
     if (newPassword) {
-      if (!currentPassword) return res.status(400).json({ message: "Current password is required" });
+      if (!currentPassword) {
+        return res
+          .status(400)
+          .json({ message: "Current password is required" });
+      }
+
       const isMatch = await bcrypt.compare(currentPassword, user.password);
-      if (!isMatch) return res.status(400).json({ message: "Current password is incorrect" });
-      if (newPassword.length < 6) return res.status(400).json({ message: "Password must be at least 6 characters" });
+      if (!isMatch) {
+        return res
+          .status(400)
+          .json({ message: "Current password is incorrect" });
+      }
+
+      if (newPassword.length < 6) {
+        return res
+          .status(400)
+          .json({ message: "Password must be at least 6 characters" });
+      }
+
       const salt = await bcrypt.genSalt(10);
       updates.password = await bcrypt.hash(newPassword, salt);
     }
@@ -168,15 +223,17 @@ export const updateAccount = async (req, res) => {
       return res.status(400).json({ message: "No changes to update" });
     }
 
-    const updatedUser = await User.findByIdAndUpdate(userId, updates, { new: true }).select("-password");
-    res.status(200).json(updatedUser);
+    const updatedUser = await User.findByIdAndUpdate(userId, updates, {
+      new: true,
+    }).select("-password");
+
+    return res.status(200).json(updatedUser);
   } catch (error) {
     console.log("Error in updateAccount:", error.message);
-    res.status(500).json({ message: "Internal Server Error" });
+    return res.status(500).json({ message: "Internal Server Error" });
   }
 };
 
-// Update privacy settings
 export const updatePrivacy = async (req, res) => {
   try {
     const { lastSeenVisibility, profilePhotoVisibility } = req.body;
@@ -184,12 +241,17 @@ export const updatePrivacy = async (req, res) => {
 
     const updates = {};
     if (lastSeenVisibility) updates.lastSeenVisibility = lastSeenVisibility;
-    if (profilePhotoVisibility) updates.profilePhotoVisibility = profilePhotoVisibility;
+    if (profilePhotoVisibility) {
+      updates.profilePhotoVisibility = profilePhotoVisibility;
+    }
 
-    const updatedUser = await User.findByIdAndUpdate(userId, updates, { new: true }).select("-password");
-    res.status(200).json(updatedUser);
+    const updatedUser = await User.findByIdAndUpdate(userId, updates, {
+      new: true,
+    }).select("-password");
+
+    return res.status(200).json(updatedUser);
   } catch (error) {
     console.log("Error in updatePrivacy:", error.message);
-    res.status(500).json({ message: "Internal Server Error" });
+    return res.status(500).json({ message: "Internal Server Error" });
   }
 };

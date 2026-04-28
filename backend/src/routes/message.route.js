@@ -6,17 +6,20 @@ import {
   sendMessage,
   deleteMessage,
   deleteContact,
+  markMessagesAsSeen,
 } from "../controllers/message.controller.js";
+import { getSyncScore } from "../controllers/syncmeter.controller.js";
 
 const router = express.Router();
 
 router.get("/users", protectRoute, getUsersForSidebar);
 
-// ✅ Specific routes FIRST
+router.get("/sync/:userId", protectRoute, getSyncScore);
+router.put("/seen/:id", protectRoute, markMessagesAsSeen);
+
 router.delete("/contact/:contactId", protectRoute, deleteContact);
 router.delete("/message/:messageId", protectRoute, deleteMessage);
 
-// ✅ Generic /:id route LAST
 router.get("/:id", protectRoute, getMessages);
 router.post("/send/:id", protectRoute, sendMessage);
 

@@ -1,26 +1,43 @@
 const MessageSkeleton = () => {
-  // Create an array of 6 items for skeleton messages
   const skeletonMessages = Array(6).fill(null);
 
   return (
-    <div className="flex-1 overflow-y-auto p-4 space-y-4">
-      {skeletonMessages.map((_, idx) => (
-        <div key={idx} className={`chat ${idx % 2 === 0 ? "chat-start" : "chat-end"}`}>
-          <div className="chat-image avatar">
-            <div className="size-10 rounded-full">
-              <div className="skeleton w-full h-full rounded-full" />
+    <div className="flex-1 overflow-y-auto p-4 space-y-4" style={{ background: "#0f172a" }}>
+      {skeletonMessages.map((_, idx) => {
+        const isRight = idx % 2 !== 0;
+        return (
+          <div
+            key={idx}
+            className={`flex items-end gap-2 animate-pulse ${isRight ? "flex-row-reverse" : "flex-row"}`}
+          >
+            {/* Avatar */}
+            <div
+              className="w-7 h-7 rounded-full shrink-0"
+              style={{ background: "rgba(255,255,255,0.06)" }}
+            />
+            {/* Bubble */}
+            <div
+              className={`flex flex-col gap-1 max-w-[60%] ${isRight ? "items-end" : "items-start"}`}
+            >
+              <div
+                className="h-2 w-12 rounded"
+                style={{ background: "rgba(255,255,255,0.04)" }}
+              />
+              <div
+                className="rounded-2xl"
+                style={{
+                  background: isRight
+                    ? "rgba(99,102,241,0.12)"
+                    : "rgba(255,255,255,0.04)",
+                  border: isRight ? "none" : "1px solid rgba(255,255,255,0.06)",
+                  width: `${100 + Math.random() * 120}px`,
+                  height: "40px",
+                }}
+              />
             </div>
           </div>
-
-          <div className="chat-header mb-1">
-            <div className="skeleton h-4 w-16" />
-          </div>
-
-          <div className="chat-bubble bg-transparent p-0">
-            <div className="skeleton h-16 w-[200px]" />
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 };

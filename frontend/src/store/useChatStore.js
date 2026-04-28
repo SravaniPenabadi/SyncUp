@@ -3,6 +3,8 @@ import toast from "react-hot-toast";
 import { axiosInstance } from "../lib/axios";
 import { useAuthStore } from "./useAuthStore";
 
+const normalizeId = (value) => value?.toString?.() ?? value;
+
 export const useChatStore = create((set, get) => ({
   messages: [],
   users: [],
@@ -16,8 +18,7 @@ export const useChatStore = create((set, get) => ({
       const res = await axiosInstance.get("/messages/users");
       set({ users: res.data });
     } catch (error) {
-      // toast.error(error.response.data.message);
-      toast.error(error?.response?.data?.message || error?.message || "Something went wrong");
+      toast.error(error?.response?.data?.message || "Failed to load contacts");
     } finally {
       set({ isUsersLoading: false });
     }
@@ -29,67 +30,112 @@ export const useChatStore = create((set, get) => ({
       const res = await axiosInstance.get(`/messages/${userId}`);
       set({ messages: res.data });
     } catch (error) {
-      // toast.error(error.response.data.message);
-      toast.error(error?.response?.data?.message || error?.message || "Something went wrong");
+      toast.error(error?.response?.data?.message || "Failed to load messages");
     } finally {
       set({ isMessagesLoading: false });
     }
   },
+
   sendMessage: async (messageData) => {
-    const { selectedUser, messages } = get();
+    const { selectedUser } = get();
+    if (!selectedUser?._id) return;
+
     try {
-      const res = await axiosInstance.post(`/messages/send/${selectedUser._id}`, messageData);
-      set({ messages: [...messages, res.data] });
+      const res = await axiosInstance.post(
+        `/messages/send/${selectedUser._id}`,
+        messageData
+      );
+
+      set((state) => ({ messages: [...state.messages, res.data] }));
     } catch (error) {
-      // toast.error(error.response.data.message);
-      toast.error(error?.response?.data?.message || error?.message || "Something went wrong");
+      toast.error(error?.response?.data?.message || "Failed to send message");
+    }
+  },
+
+  markMessagesAsSeen: async (userId) => {
+    try {
+      await axiosInstance.put(`/messages/seen/${userId}`);
+      set((state) => ({
+        messages: state.messages.map((message) =>
+          normalizeId(message.senderId) === userId
+            ? { ...message, seen: true, seenAt: message.seenAt || new Date().toISOString() }
+            : message
+        ),
+      }));
+    } catch (error) {
+      console.log("Failed to mark messages as seen", error);
+    }
+  },
+
+  deleteMessage: async (messageId) => {
+    try {
+      await axiosInstance.delete(`/messages/message/${messageId}`);
+      set((state) => ({
+        messages: state.messages.filter((message) => message._id !== messageId),
+      }));
+    } catch (error) {
+      toast.error(error?.response?.data?.message || "Failed to delete message");
+    }
+  },
+
+  deleteContact: async (contactId) => {
+    try {
+      await axiosInstance.delete(`/messages/contact/${contactId}`);
+      set((state) => ({
+        users: state.users.filter((user) => user._id !== contactId),
+        selectedUser:
+          state.selectedUser?._id === contactId ? null : state.selectedUser,
+        messages:
+          state.selectedUser?._id === contactId ? [] : state.messages,
+      }));
+      toast.success("Contact deleted");
+    } catch (error) {
+      toast.error(error?.response?.data?.message || "Failed to delete contact");
     }
   },
 
   subscribeToMessages: () => {
     const { selectedUser } = get();
-    if (!selectedUser) return;
-
     const socket = useAuthStore.getState().socket;
 
-    socket.on("newMessage", (newMessage) => {
-      const isMessageSentFromSelectedUser = newMessage.senderId === selectedUser._id;
-      if (!isMessageSentFromSelectedUser) return;
+    if (!selectedUser?._id || !socket) return;
 
-      set({
-        messages: [...get().messages, newMessage],
+    socket.off("newMessage");
+    socket.off("messagesSeen");
+
+    socket.on("newMessage", (newMessage) => {
+      const incomingSenderId = normalizeId(newMessage.senderId);
+
+      if (incomingSenderId !== selectedUser._id) return;
+
+      set((state) => {
+        if (state.messages.some((message) => message._id === newMessage._id)) {
+          return state;
+        }
+
+        return { messages: [...state.messages, newMessage] };
       });
     });
+
+    socket.on("messagesSeen", ({ receiverId }) => {
+      const authUserId = useAuthStore.getState().authUser?._id;
+      if (!authUserId) return;
+
+      set((state) => ({
+        messages: state.messages.map((message) =>
+          normalizeId(message.senderId) === authUserId &&
+          normalizeId(message.receiverId) === receiverId
+            ? { ...message, seen: true, seenAt: message.seenAt || new Date().toISOString() }
+            : message
+        ),
+      }));
+    });
   },
-deleteMessage: async (messageId) => {
-  try {
-    await axiosInstance.delete(`/messages/${messageId}`);
-    set({ messages: get().messages.filter((m) => m._id !== messageId) });
-  } catch (error) {
-    toast.error(error?.response?.data?.message || "Failed to delete message");
-  }
-},
-
-deleteContact: async (contactId) => {
-  try {
-    await axiosInstance.delete(`/messages/contact/${contactId}`);
-
-    // Remove from users list immediately (no refresh needed)
-    set((state) => ({
-      users: state.users.filter((u) => u._id !== contactId),
-      selectedUser:
-        state.selectedUser?._id === contactId ? null : state.selectedUser,
-    }));
-
-    toast.success("Contact deleted");
-  } catch (error) {
-    toast.error(error.response?.data?.message || "Failed to delete contact");
-  }
-},
 
   unsubscribeFromMessages: () => {
     const socket = useAuthStore.getState().socket;
-    socket.off("newMessage");
+    socket?.off("newMessage");
+    socket?.off("messagesSeen");
   },
 
   setSelectedUser: (selectedUser) => set({ selectedUser }),
