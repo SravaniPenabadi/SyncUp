@@ -1,9 +1,15 @@
-import { useEffect, useRef } from "react";
+// import { useEffect, useRef } from "react";
+// import { useChatStore } from "../store/useChatStore";
+// import { useAuthStore } from "../store/useAuthStore";
+// import MessageInput from "./MessageInput";
+// import MessageSkeleton from "./skeletons/MessageSkeleton";
+// import { Users2, X } from "lucide-react";
+// import { formatMessageTime } from "../lib/utils";
+import { useState, useEffect, useRef } from "react";
 import { useChatStore } from "../store/useChatStore";
 import { useAuthStore } from "../store/useAuthStore";
-import MessageInput from "./MessageInput";
 import MessageSkeleton from "./skeletons/MessageSkeleton";
-import { Users2, X } from "lucide-react";
+import { Users2, X, Image, Send } from "lucide-react";
 import { formatMessageTime } from "../lib/utils";
 
 const GroupChatContainer = () => {

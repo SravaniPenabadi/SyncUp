@@ -1,9 +1,8 @@
 import ContactRequest from "../models/contactRequest.model.js";
 import User from "../models/user.model.js";
+import Message from "../models/message.model.js"; // ✅ top-level import
 import { getReceiverSocketId, io } from "../lib/socket.js";
-import Message from "../models/message.model.js"; 
 
-// Send contact request
 export const sendContactRequest = async (req, res) => {
   try {
     const { email } = req.body;
@@ -18,7 +17,6 @@ export const sendContactRequest = async (req, res) => {
       return res.status(400).json({ message: "You cannot add yourself" });
     }
 
-    // Check if request already exists
     const existing = await ContactRequest.findOne({
       sender: senderId,
       receiver: receiver._id,
@@ -26,7 +24,6 @@ export const sendContactRequest = async (req, res) => {
     });
     if (existing) return res.status(400).json({ message: "Request already sent" });
 
-    // Check if already contacts
     const alreadyContact = await ContactRequest.findOne({
       $or: [
         { sender: senderId, receiver: receiver._id, status: "accepted" },
@@ -35,17 +32,13 @@ export const sendContactRequest = async (req, res) => {
     });
     if (alreadyContact) return res.status(400).json({ message: "Already in your contacts" });
 
-    const request = new ContactRequest({
-      sender: senderId,
-      receiver: receiver._id,
-    });
+    const request = new ContactRequest({ sender: senderId, receiver: receiver._id });
     await request.save();
 
     const populated = await ContactRequest.findById(request._id)
       .populate("sender", "-password")
       .populate("receiver", "-password");
 
-    // Send real-time notification via socket
     const receiverSocketId = getReceiverSocketId(receiver._id.toString());
     if (receiverSocketId) {
       io.to(receiverSocketId).emit("newContactRequest", populated);
@@ -58,7 +51,6 @@ export const sendContactRequest = async (req, res) => {
   }
 };
 
-// Get all pending requests for logged in user
 export const getPendingRequests = async (req, res) => {
   try {
     const userId = req.user._id;
@@ -66,7 +58,6 @@ export const getPendingRequests = async (req, res) => {
       receiver: userId,
       status: "pending",
     }).populate("sender", "-password");
-
     res.status(200).json(requests);
   } catch (error) {
     console.log("Error in getPendingRequests:", error);
@@ -74,7 +65,6 @@ export const getPendingRequests = async (req, res) => {
   }
 };
 
-// Accept contact request
 export const acceptContactRequest = async (req, res) => {
   try {
     const { requestId } = req.params;
@@ -90,20 +80,12 @@ export const acceptContactRequest = async (req, res) => {
     request.status = "accepted";
     await request.save();
 
-    // Remove from deletedContacts for both users
-    await User.findByIdAndUpdate(userId, {
-      $pull: { deletedContacts: request.sender },
-    });
-    await User.findByIdAndUpdate(request.sender, {
-      $pull: { deletedContacts: userId },
-    });
+    await User.findByIdAndUpdate(userId, { $pull: { deletedContacts: request.sender } });
+    await User.findByIdAndUpdate(request.sender, { $pull: { deletedContacts: userId } });
 
-    // Notify sender via socket
     const senderSocketId = getReceiverSocketId(request.sender.toString());
     if (senderSocketId) {
-      io.to(senderSocketId).emit("contactRequestAccepted", {
-        acceptedBy: userId,
-      });
+      io.to(senderSocketId).emit("contactRequestAccepted", { acceptedBy: userId });
     }
 
     res.status(200).json({ message: "Contact request accepted" });
@@ -113,7 +95,6 @@ export const acceptContactRequest = async (req, res) => {
   }
 };
 
-// Reject contact request
 export const rejectContactRequest = async (req, res) => {
   try {
     const { requestId } = req.params;
@@ -136,20 +117,17 @@ export const rejectContactRequest = async (req, res) => {
   }
 };
 
-// Get unread message notifications
 export const getMessageNotifications = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    const unseen = await Message.find({
-      receiverId: userId,
-      seen: false,
-    })
+    const unseen = await Message.find({ receiverId: userId, seen: false })
       .populate("senderId", "fullName profilePic")
       .sort({ createdAt: -1 });
 
     const grouped = {};
     unseen.forEach((msg) => {
+      if (!msg.senderId) return; // ✅ safety check
       const sid = msg.senderId._id.toString();
       if (!grouped[sid]) {
         grouped[sid] = {
