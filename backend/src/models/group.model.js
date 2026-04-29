@@ -7,6 +7,7 @@ const groupSchema = new mongoose.Schema(
     admin: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     groupImage: { type: String, default: "" },
     isGroupChat: { type: Boolean, default: true },
+    lastMessage: { type: String, default: "" },
   },
   { timestamps: true }
 );

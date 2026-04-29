@@ -1,6 +1,8 @@
 import Group from "../models/group.model.js";
+import GroupMessage from "../models/groupMessage.model.js";
 import User from "../models/user.model.js";
 import cloudinary from "../lib/cloudinary.js";
+import { io, getReceiverSocketId } from "../lib/socket.js";
 
 // Create a new group
 export const createGroup = async (req, res) => {
@@ -12,7 +14,6 @@ export const createGroup = async (req, res) => {
       return res.status(400).json({ message: "Group name and at least 1 member required" });
     }
 
-    // Include admin in members if not already
     const allMembers = [...new Set([...members, admin.toString()])];
 
     let imageUrl = "";
@@ -21,14 +22,9 @@ export const createGroup = async (req, res) => {
       imageUrl = upload.secure_url;
     }
 
-    const group = new Group({
-      name,
-      members: allMembers,
-      admin,
-      groupImage: imageUrl,
-    });
-
+    const group = new Group({ name, members: allMembers, admin, groupImage: imageUrl });
     await group.save();
+
     const populated = await Group.findById(group._id).populate("members", "-password");
     res.status(201).json(populated);
   } catch (error) {
@@ -41,7 +37,9 @@ export const createGroup = async (req, res) => {
 export const getMyGroups = async (req, res) => {
   try {
     const userId = req.user._id;
-    const groups = await Group.find({ members: userId }).populate("members", "-password");
+    const groups = await Group.find({ members: userId })
+      .populate("members", "-password")
+      .sort({ updatedAt: -1 });
     res.status(200).json(groups);
   } catch (error) {
     console.log("Error in getMyGroups:", error);
@@ -49,7 +47,69 @@ export const getMyGroups = async (req, res) => {
   }
 };
 
-// Add contact (just fetch user by email)
+// Get group messages
+export const getGroupMessages = async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const messages = await GroupMessage.find({ groupId })
+      .populate("senderId", "fullName profilePic")
+      .sort({ createdAt: 1 });
+    res.status(200).json(messages);
+  } catch (error) {
+    console.log("Error in getGroupMessages:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// Send group message
+export const sendGroupMessage = async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const { text, image, voice } = req.body;
+    const senderId = req.user._id;
+
+    const group = await Group.findById(groupId);
+    if (!group) return res.status(404).json({ message: "Group not found" });
+
+    let imageUrl, voiceUrl;
+    if (image) {
+      const upload = await cloudinary.uploader.upload(image);
+      imageUrl = upload.secure_url;
+    }
+    if (voice) {
+      const upload = await cloudinary.uploader.upload(voice, { resource_type: "video" });
+      voiceUrl = upload.secure_url;
+    }
+
+    const message = new GroupMessage({ groupId, senderId, text, image: imageUrl, voice: voiceUrl });
+    await message.save();
+
+    // Update lastMessage on group
+    await Group.findByIdAndUpdate(groupId, {
+      lastMessage: text || (image ? "📷 Image" : "🎤 Voice"),
+    });
+
+    const populated = await GroupMessage.findById(message._id)
+      .populate("senderId", "fullName profilePic");
+
+    // Emit to all group members
+    group.members.forEach((memberId) => {
+      if (memberId.toString() !== senderId.toString()) {
+        const socketId = getReceiverSocketId(memberId.toString());
+        if (socketId) {
+          io.to(socketId).emit("newGroupMessage", { message: populated, groupId });
+        }
+      }
+    });
+
+    res.status(201).json(populated);
+  } catch (error) {
+    console.log("Error in sendGroupMessage:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// Add contact
 export const addContact = async (req, res) => {
   try {
     const { email } = req.body;
@@ -64,7 +124,6 @@ export const addContact = async (req, res) => {
       return res.status(400).json({ message: "You cannot add yourself" });
     }
 
-    // Remove from deletedContacts if previously deleted
     await User.findByIdAndUpdate(loggedInUserId, {
       $pull: { deletedContacts: user._id },
     });
