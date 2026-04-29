@@ -1,6 +1,7 @@
+
+import Message from "../models/message.model.js"; // ✅ top-level import
 import ContactRequest from "../models/contactRequest.model.js";
 import User from "../models/user.model.js";
-import Message from "../models/message.model.js"; // ✅ top-level import
 import { getReceiverSocketId, io } from "../lib/socket.js";
 
 export const sendContactRequest = async (req, res) => {
