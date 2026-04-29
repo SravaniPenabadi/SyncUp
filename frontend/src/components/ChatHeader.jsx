@@ -1,4 +1,4 @@
-import { X, ChevronDown, ChevronUp } from "lucide-react";
+import { X, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
 import { useAuthStore } from "../store/useAuthStore";
 import { useChatStore } from "../store/useChatStore";
 import { useEffect, useState } from "react";
@@ -29,11 +29,16 @@ const formatLastSeen = (lastSeen) => {
   return `Last seen ${exact} (${relative})`;
 };
 
-const ChatHeader = () => {
-  const { selectedUser, setSelectedUser, getSyncScore, syncScore, syncLabel, syncDetails } = useChatStore();
+const ChatHeader = ({ mood = "neutral", theme = {} }) => {
+  const {
+    selectedUser, setSelectedUser,
+    getSyncScore, syncScore, syncLabel, syncDetails,
+    deleteContact,
+  } = useChatStore();
   const { onlineUsers } = useAuthStore();
   const [lastSeen, setLastSeen] = useState(null);
-  const [showSync, setShowSync] = useState(false); // ✅ collapsed by default
+  const [showSync, setShowSync] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const isOnline = onlineUsers.includes(selectedUser._id);
 
@@ -45,12 +50,17 @@ const ChatHeader = () => {
         .catch(() => setLastSeen(null));
     }
     getSyncScore(selectedUser._id);
-    setShowSync(false); // reset when switching chats
+    setShowSync(false);
+    setShowDeleteConfirm(false);
   }, [selectedUser._id, isOnline]);
+
+  const handleDeleteChat = async () => {
+    await deleteContact(selectedUser._id);
+    setSelectedUser(null);
+  };
 
   return (
     <div className="border-b border-base-300">
-      {/* Main header row */}
       <div className="p-2.5 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="avatar">
@@ -59,7 +69,15 @@ const ChatHeader = () => {
             </div>
           </div>
           <div>
-            <h3 className="font-medium">{selectedUser.fullName}</h3>
+            <div className="flex items-center gap-2">
+              <h3 className="font-medium">{selectedUser.fullName}</h3>
+              {/* ✅ Mood indicator emoji */}
+              {mood !== "neutral" && (
+                <span className="text-base" title={theme.label}>
+                  {theme.emoji}
+                </span>
+              )}
+            </div>
             <p className="text-sm text-base-content/70">
               {isOnline ? (
                 <span className="text-green-500">Online</span>
@@ -70,8 +88,8 @@ const ChatHeader = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* ✅ Toggle button */}
+        <div className="flex items-center gap-1">
+          {/* Sync toggle */}
           <button
             onClick={() => setShowSync((prev) => !prev)}
             className="btn btn-ghost btn-sm gap-1 text-xs"
@@ -81,17 +99,43 @@ const ChatHeader = () => {
             {showSync ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
           </button>
 
+          {/* ✅ Delete chat button */}
+          {!showDeleteConfirm ? (
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="btn btn-ghost btn-sm btn-circle text-zinc-400 hover:text-red-500"
+              title="Delete chat"
+            >
+              <Trash2 size={16} />
+            </button>
+          ) : (
+            <div className="flex items-center gap-1">
+              <span className="text-xs text-zinc-400 hidden sm:inline">Delete chat?</span>
+              <button
+                onClick={handleDeleteChat}
+                className="btn btn-xs btn-error"
+              >
+                Yes
+              </button>
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="btn btn-xs btn-ghost"
+              >
+                No
+              </button>
+            </div>
+          )}
+
           <button onClick={() => setSelectedUser(null)}>
             <X />
           </button>
         </div>
       </div>
 
-      {/* ✅ Collapsible sync panel */}
+      {/* Sync panel */}
       {showSync && (
-        <div className="px-4 pb-3 flex items-center gap-6 bg-base-200/50 animate-in slide-in-from-top-2 duration-200">
+        <div className="px-4 pb-3 flex items-center gap-6 bg-base-200/50">
           <SyncMeter score={syncScore} label={syncLabel} size="md" />
-
           {syncDetails && (
             <div className="flex gap-4 text-xs text-zinc-400">
               <div className="flex flex-col items-center gap-0.5">
