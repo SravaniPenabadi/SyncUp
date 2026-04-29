@@ -3,6 +3,7 @@ import { Bell, UserCheck, UserX, MessageCircle } from "lucide-react";
 import { useNotificationStore } from "../store/useNotificationStore";
 import { useChatStore } from "../store/useChatStore";
 import { useAuthStore } from "../store/useAuthStore";
+import toast from "react-hot-toast";
 
 const NotificationBell = () => {
   const [open, setOpen] = useState(false);
@@ -16,6 +17,7 @@ const NotificationBell = () => {
     rejectRequest,
     getTotalCount,
     clearMessageNotification,
+    addContactRequest,
   } = useNotificationStore();
 
   const { setSelectedUser, getUsers } = useChatStore();
@@ -28,17 +30,17 @@ const NotificationBell = () => {
     fetchAll();
   }, []);
 
-  // Real-time socket events
+  // ✅ Real-time socket events
   useEffect(() => {
     if (!socket) return;
 
     socket.on("newContactRequest", (request) => {
-      useNotificationStore.getState().addContactRequest(request);
+      addContactRequest(request);
     });
 
     socket.on("contactRequestAccepted", () => {
       toast.success("Your contact request was accepted!");
-      getUsers(); // refresh sidebar
+      getUsers();
     });
 
     return () => {
@@ -66,12 +68,11 @@ const NotificationBell = () => {
 
   const handleAccept = async (requestId) => {
     await acceptRequest(requestId);
-    getUsers(); // refresh sidebar contacts
+    getUsers();
   };
 
   return (
     <div className="relative" ref={bellRef}>
-      {/* Bell button */}
       <button
         onClick={() => setOpen((prev) => !prev)}
         className="btn btn-ghost btn-sm btn-circle relative"
@@ -85,7 +86,6 @@ const NotificationBell = () => {
         )}
       </button>
 
-      {/* Dropdown */}
       {open && (
         <div className="absolute right-0 top-11 z-50 w-80 bg-base-100 border border-base-300
           rounded-xl shadow-xl overflow-hidden">
@@ -100,7 +100,6 @@ const NotificationBell = () => {
           </div>
 
           <div className="max-h-96 overflow-y-auto">
-
             {/* Contact Requests */}
             {contactRequests.length > 0 && (
               <div>

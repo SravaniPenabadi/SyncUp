@@ -4,11 +4,22 @@ import Message from "../models/message.model.js";
 
 import cloudinary from "../lib/cloudinary.js";
 import { getReceiverSocketId, io } from "../lib/socket.js";
+import ContactRequest from "../models/contactRequest.model.js";
 
 // export const getUsersForSidebar = async (req, res) => {
 //   try {
 //     const loggedInUserId = req.user._id;
-//     const filteredUsers = await User.find({ _id: { $ne: loggedInUserId } }).select("-password");
+//     const loggedInUser = await User.findById(loggedInUserId);
+
+//     // ✅ fallback to empty array if field doesn't exist yet
+//     const deletedContacts = loggedInUser.deletedContacts || [];
+
+//     const filteredUsers = await User.find({
+//       _id: {
+//         $ne: loggedInUserId,
+//         $nin: deletedContacts,
+//       },
+//     }).select("-password");
 
 //     res.status(200).json(filteredUsers);
 //   } catch (error) {
@@ -16,24 +27,40 @@ import { getReceiverSocketId, io } from "../lib/socket.js";
 //     res.status(500).json({ error: "Internal server error" });
 //   }
 // };
+
 export const getUsersForSidebar = async (req, res) => {
   try {
     const loggedInUserId = req.user._id;
     const loggedInUser = await User.findById(loggedInUserId);
-
-    // ✅ fallback to empty array if field doesn't exist yet
     const deletedContacts = loggedInUser.deletedContacts || [];
 
-    const filteredUsers = await User.find({
-      _id: {
-        $ne: loggedInUserId,
-        $nin: deletedContacts,
-      },
+    // ✅ Only show users who have an accepted contact request
+    const acceptedRequests = await ContactRequest.find({
+      $or: [
+        { sender: loggedInUserId, status: "accepted" },
+        { receiver: loggedInUserId, status: "accepted" },
+      ],
+    });
+
+    // Get the other person's ID from each accepted request
+    const contactIds = acceptedRequests.map((req) =>
+      req.sender.toString() === loggedInUserId.toString()
+        ? req.receiver
+        : req.sender
+    );
+
+    // Filter out deleted contacts
+    const filteredIds = contactIds.filter(
+      (id) => !deletedContacts.map((d) => d.toString()).includes(id.toString())
+    );
+
+    const contacts = await User.find({
+      _id: { $in: filteredIds },
     }).select("-password");
 
-    res.status(200).json(filteredUsers);
+    res.status(200).json(contacts);
   } catch (error) {
-    console.error("Error in getUsersForSidebar: ", error.message);
+    console.error("Error in getUsersForSidebar:", error.message);
     res.status(500).json({ error: "Internal server error" });
   }
 };

@@ -1,6 +1,7 @@
 import ContactRequest from "../models/contactRequest.model.js";
 import User from "../models/user.model.js";
 import { getReceiverSocketId, io } from "../lib/socket.js";
+import Message from "../models/message.model.js"; 
 
 // Send contact request
 export const sendContactRequest = async (req, res) => {
@@ -140,8 +141,6 @@ export const getMessageNotifications = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    // Get unseen messages grouped by sender
-    const { Message } = await import("../models/message.model.js");
     const unseen = await Message.find({
       receiverId: userId,
       seen: false,
@@ -149,7 +148,6 @@ export const getMessageNotifications = async (req, res) => {
       .populate("senderId", "fullName profilePic")
       .sort({ createdAt: -1 });
 
-    // Group by sender
     const grouped = {};
     unseen.forEach((msg) => {
       const sid = msg.senderId._id.toString();
