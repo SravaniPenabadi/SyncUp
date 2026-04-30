@@ -157,6 +157,17 @@ export const useChatStore = create((set, get) => ({
     }
   },
 
+deleteGroupMessage: async (messageId) => {
+  try {
+    await axiosInstance.delete(`/groups/message/${messageId}`);
+    set((state) => ({
+      groupMessages: state.groupMessages.filter((m) => m._id !== messageId),
+    }));
+  } catch (error) {
+    toast.error(error?.response?.data?.message || "Failed to delete message");
+  }
+},
+
   sendGroupMessage: async (messageData) => {
     const { selectedGroup, groupMessages } = get();
     try {
@@ -184,3 +195,4 @@ export const useChatStore = create((set, get) => ({
 
   setSelectedGroup: (group) => set({ selectedGroup: group, selectedUser: null }),
 }));
+

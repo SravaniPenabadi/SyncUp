@@ -27,12 +27,21 @@ io.on("connection", (socket) => {
 
   io.emit("getOnlineUsers", Object.keys(userSocketMap));
 
+  // ✅ Handle mood updates between users
+  socket.on("moodUpdate", ({ receiverId, mood }) => {
+    const receiverSocketId = getReceiverSocketId(receiverId);
+    if (receiverSocketId) {
+      io.to(receiverSocketId).emit("moodUpdate", {
+        senderId: userId,
+        mood,
+      });
+    }
+  });
+
   socket.on("disconnect", async () => {
     console.log("A user disconnected", socket.id);
     delete userSocketMap[userId];
     io.emit("getOnlineUsers", Object.keys(userSocketMap));
-
-    // ✅ Save lastSeen time when user goes offline
     if (userId) {
       await User.findByIdAndUpdate(userId, { lastSeen: new Date() });
     }

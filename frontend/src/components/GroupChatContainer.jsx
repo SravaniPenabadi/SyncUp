@@ -1,10 +1,3 @@
-// import { useEffect, useRef } from "react";
-// import { useChatStore } from "../store/useChatStore";
-// import { useAuthStore } from "../store/useAuthStore";
-// import MessageInput from "./MessageInput";
-// import MessageSkeleton from "./skeletons/MessageSkeleton";
-// import { Users2, X } from "lucide-react";
-// import { formatMessageTime } from "../lib/utils";
 import { useState, useEffect, useRef } from "react";
 import { useChatStore } from "../store/useChatStore";
 import { useAuthStore } from "../store/useAuthStore";
@@ -21,6 +14,7 @@ const GroupChatContainer = () => {
     isGroupMessagesLoading,
     subscribeToGroupMessages,
     unsubscribeFromGroupMessages,
+    deleteGroupMessage,
   } = useChatStore();
 
   const { authUser } = useAuthStore();
@@ -38,13 +32,16 @@ const GroupChatContainer = () => {
     }
   }, [groupMessages]);
 
-  // ✅ Inline header component — no more undefined GroupHeader
   const Header = () => (
     <div className="p-2.5 border-b border-base-300 flex items-center justify-between">
       <div className="flex items-center gap-3">
         <div className="size-10 rounded-full bg-primary/20 flex items-center justify-center overflow-hidden">
           {selectedGroup.groupImage ? (
-            <img src={selectedGroup.groupImage} alt={selectedGroup.name} className="w-full h-full object-cover" />
+            <img
+              src={selectedGroup.groupImage}
+              alt={selectedGroup.name}
+              className="w-full h-full object-cover"
+            />
           ) : (
             <Users2 className="size-5 text-primary" />
           )}
@@ -83,10 +80,13 @@ const GroupChatContainer = () => {
             <p className="text-sm">No messages yet. Say hi! 👋</p>
           </div>
         )}
+
         {groupMessages.map((message) => (
           <div
             key={message._id}
-            className={`chat ${message.senderId._id === authUser._id ? "chat-end" : "chat-start"}`}
+            className={`chat ${
+              message.senderId._id === authUser._id ? "chat-end" : "chat-start"
+            }`}
           >
             <div className="chat-image avatar">
               <div className="size-10 rounded-full border">
@@ -96,6 +96,7 @@ const GroupChatContainer = () => {
                 />
               </div>
             </div>
+
             <div className="chat-header mb-1 flex items-center gap-2">
               {message.senderId._id !== authUser._id && (
                 <span className="text-xs font-medium text-primary">
@@ -106,6 +107,7 @@ const GroupChatContainer = () => {
                 {formatMessageTime(message.createdAt)}
               </time>
             </div>
+
             <div className="chat-bubble flex flex-col">
               {message.image && (
                 <img
@@ -119,12 +121,21 @@ const GroupChatContainer = () => {
               )}
               {message.text && <p>{message.text}</p>}
             </div>
+
+            {/* ✅ Delete button for own messages */}
+            {message.senderId._id === authUser._id && (
+              <button
+                onClick={() => deleteGroupMessage(message._id)}
+                className="text-xs text-red-400 hover:text-red-600 mt-1"
+              >
+                Delete
+              </button>
+            )}
           </div>
         ))}
         <div ref={messageEndRef} />
       </div>
 
-      {/* Group Message Input */}
       <GroupMessageInput />
     </div>
   );
@@ -169,6 +180,7 @@ const GroupMessageInput = () => {
           </div>
         </div>
       )}
+
       <form onSubmit={handleSend} className="flex items-center gap-2">
         <input
           type="text"

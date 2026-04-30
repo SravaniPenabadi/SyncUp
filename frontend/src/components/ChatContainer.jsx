@@ -9,20 +9,15 @@ import { detectMood, MOOD_THEMES } from "../lib/moodDetector";
 
 const ChatContainer = () => {
   const {
-    messages,
-    getMessages,
-    isMessagesLoading,
-    selectedUser,
-    subscribeToMessages,
-    unsubscribeFromMessages,
-    deleteMessage,
-    markMessagesAsSeen,
-    deleteContact,
+    messages, getMessages, isMessagesLoading, selectedUser,
+    subscribeToMessages, unsubscribeFromMessages,
+    deleteMessage, markMessagesAsSeen, deleteContact,
   } = useChatStore();
 
-  const { authUser } = useAuthStore();
+  const { authUser, socket } = useAuthStore();
   const messageEndRef = useRef(null);
   const [mood, setMood] = useState("neutral");
+  const [otherMood, setOtherMood] = useState("neutral");
   const [showMoodBanner, setShowMoodBanner] = useState(false);
 
   useEffect(() => {
@@ -32,12 +27,21 @@ const ChatContainer = () => {
     return () => unsubscribeFromMessages();
   }, [selectedUser._id, getMessages, subscribeToMessages, unsubscribeFromMessages, markMessagesAsSeen]);
 
+  // ✅ Listen for other user's mood via socket
+  useEffect(() => {
+    if (!socket) return;
+    socket.on("moodUpdate", ({ senderId, mood: incomingMood }) => {
+      if (senderId === selectedUser._id) {
+        setOtherMood(incomingMood);
+      }
+    });
+    return () => socket.off("moodUpdate");
+  }, [socket, selectedUser._id]);
+
   useEffect(() => {
     if (messageEndRef.current && messages) {
       messageEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
-
-    // ✅ Auto detect mood from messages
     if (messages.length > 0) {
       const detectedMood = detectMood(messages, authUser._id);
       if (detectedMood !== mood) {
@@ -45,12 +49,19 @@ const ChatContainer = () => {
         if (detectedMood !== "neutral") {
           setShowMoodBanner(true);
           setTimeout(() => setShowMoodBanner(false), 3000);
+          // ✅ Emit mood to other user via socket
+          socket?.emit("moodUpdate", {
+            receiverId: selectedUser._id,
+            mood: detectedMood,
+          });
         }
       }
     }
   }, [messages]);
 
-  const theme = MOOD_THEMES[mood] || MOOD_THEMES.neutral;
+  // Use other user's mood if they have one, otherwise use own mood
+  const activeMood = otherMood !== "neutral" ? otherMood : mood;
+  const theme = MOOD_THEMES[activeMood] || MOOD_THEMES.neutral;
 
   const lastSeenIndex = messages
     .map((m, i) => (m.senderId === authUser._id && m.seen ? i : -1))
@@ -60,7 +71,7 @@ const ChatContainer = () => {
   if (isMessagesLoading) {
     return (
       <div className="flex-1 flex flex-col overflow-auto">
-        <ChatHeader />
+        <ChatHeader mood={mood} theme={theme} />
         <MessageSkeleton />
         <MessageInput />
       </div>
@@ -68,22 +79,21 @@ const ChatContainer = () => {
   }
 
   return (
-    <div className={`flex-1 flex flex-col overflow-auto transition-all duration-500 ${theme.bg}`}>
-      {/* Chat Header with mood-aware border */}
-      <div className={mood !== "neutral" ? theme.header : ""}>
-        <ChatHeader mood={mood} theme={theme} />
-      </div>
+    <div className="flex-1 flex flex-col overflow-auto">
+      {/* Header — no background change */}
+      <ChatHeader mood={mood} theme={theme} />
 
-      {/* ✅ Mood banner — shows briefly when mood changes */}
+      {/* Mood banner */}
       {showMoodBanner && mood !== "neutral" && (
         <div className={`mx-4 mt-2 px-4 py-2 rounded-full text-center text-sm font-medium
-          shadow-sm transition-all duration-300 ${theme.bubble}`}>
+          shadow-sm ${theme.bubble}`}>
           {theme.label}
         </div>
       )}
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      {/* ✅ Only messages area gets mood background */}
+      <div className={`flex-1 overflow-y-auto p-4 space-y-4 transition-all duration-700
+        ${activeMood !== "neutral" ? theme.bg : ""}`}>
         {messages.map((message, index) => (
           <div
             key={message._id}
@@ -108,18 +118,13 @@ const ChatContainer = () => {
               </time>
             </div>
 
-            {/* ✅ Mood-colored bubble for sent messages */}
+            {/* ✅ Only sent message bubbles get mood color */}
             <div className={`chat-bubble flex flex-col
-              ${message.senderId === authUser._id && mood !== "neutral"
-                ? theme.bubble
-                : ""}`}
-            >
+              ${message.senderId === authUser._id && activeMood !== "neutral"
+                ? theme.bubble : ""}`}>
               {message.image && (
-                <img
-                  src={message.image}
-                  alt="Attachment"
-                  className="sm:max-w-[200px] rounded-md mb-2"
-                />
+                <img src={message.image} alt="Attachment"
+                  className="sm:max-w-[200px] rounded-md mb-2" />
               )}
               {message.voice && (
                 <audio controls src={message.voice} className="max-w-[200px]" />
@@ -127,14 +132,10 @@ const ChatContainer = () => {
               {message.text && <p>{message.text}</p>}
             </div>
 
-            {/* Seen indicator */}
             {message.senderId === authUser._id && index === lastSeenIndex && (
-              <div className="text-[11px] text-primary mt-0.5 text-right pr-1">
-                Seen
-              </div>
+              <div className="text-[11px] text-primary mt-0.5 text-right pr-1">Seen</div>
             )}
 
-            {/* Delete message button */}
             {message.senderId === authUser._id && (
               <button
                 onClick={() => deleteMessage(message._id)}
