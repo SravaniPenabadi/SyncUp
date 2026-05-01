@@ -153,6 +153,17 @@ const MessageInput = () => {
       if (voiceBlob) {
         voiceBase64 = await blobToBase64(voiceBlob);
       }
+      
+      const { replyTo, clearReplyTo } = useChatStore.getState();
+
+await sendMessage({
+  text: text.trim(),
+  image: imagePreview,
+  voice: voiceBase64,
+  replyTo: replyTo?._id || null,
+});
+
+clearReplyTo();
 
       await sendMessage({
         text: text.trim(),

@@ -157,6 +157,56 @@ export const useChatStore = create((set, get) => ({
     }
   },
 
+  replyTo: null,
+starredMessages: [],
+
+setReplyTo: (message) => set({ replyTo: message }),
+clearReplyTo: () => set({ replyTo: null }),
+
+deleteMessageForEveryone: async (messageId) => {
+  try {
+    await axiosInstance.delete(`/messages/everyone/${messageId}`);
+    set((state) => ({
+      messages: state.messages.map((m) =>
+        m._id === messageId
+          ? { ...m, text: null, image: null, voice: null, deletedForEveryone: true }
+          : m
+      ),
+    }));
+  } catch (error) {
+    toast.error(error?.response?.data?.message || "Failed to delete message");
+  }
+},
+
+deleteMessageForMe: async (messageId) => {
+  try {
+    await axiosInstance.delete(`/messages/${messageId}`);
+    set((state) => ({
+      messages: state.messages.filter((m) => m._id !== messageId),
+    }));
+  } catch (error) {
+    toast.error(error?.response?.data?.message || "Failed to delete message");
+  }
+},
+
+starMessage: async (messageId) => {
+  try {
+    const res = await axiosInstance.put(`/messages/star/${messageId}`);
+    toast.success(res.data.starred ? "Message starred ⭐" : "Star removed");
+  } catch (error) {
+    toast.error("Failed to star message");
+  }
+},
+
+getStarredMessages: async () => {
+  try {
+    const res = await axiosInstance.get("/messages/starred");
+    set({ starredMessages: res.data });
+  } catch (error) {
+    toast.error("Failed to load starred messages");
+  }
+},
+
 deleteGroupMessage: async (messageId) => {
   try {
     await axiosInstance.delete(`/groups/message/${messageId}`);

@@ -262,3 +262,72 @@ export const deleteContact = async (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
 };
+
+// Delete for everyone
+export const deleteMessageForEveryone = async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    const userId = req.user._id;
+
+    const message = await Message.findById(messageId);
+    if (!message) return res.status(404).json({ message: "Message not found" });
+
+    if (message.senderId.toString() !== userId.toString()) {
+      return res.status(403).json({ message: "Not authorized" });
+    }
+
+    // Replace text with deleted indicator
+    await Message.findByIdAndUpdate(messageId, {
+      text: null,
+      image: null,
+      voice: null,
+      deletedForEveryone: true,
+    });
+
+    // Notify receiver via socket
+    const receiverSocketId = getReceiverSocketId(message.receiverId.toString());
+    if (receiverSocketId) {
+      io.to(receiverSocketId).emit("messageDeletedForEveryone", { messageId });
+    }
+
+    res.status(200).json({ message: "Message deleted for everyone" });
+  } catch (error) {
+    console.log("Error in deleteMessageForEveryone:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// Star a message
+export const starMessage = async (req, res) => {
+  try {
+    const { messageId } = req.params;
+    const userId = req.user._id;
+
+    const message = await Message.findById(messageId);
+    if (!message) return res.status(404).json({ message: "Message not found" });
+
+    const isStarred = message.starredBy?.includes(userId);
+    await Message.findByIdAndUpdate(messageId, {
+      [isStarred ? "$pull" : "$addToSet"]: { starredBy: userId },
+    });
+
+    res.status(200).json({ starred: !isStarred });
+  } catch (error) {
+    console.log("Error in starMessage:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// Get starred messages
+export const getStarredMessages = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const messages = await Message.find({ starredBy: userId })
+      .populate("senderId", "fullName profilePic")
+      .sort({ createdAt: -1 });
+    res.status(200).json(messages);
+  } catch (error) {
+    console.log("Error in getStarredMessages:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
